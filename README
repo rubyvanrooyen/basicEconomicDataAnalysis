@@ -1,5 +1,5 @@
 Usage:
-python quicklook.py [options] -f data/ESF_DATA_ORIG.csv
+python quicklook.py [options] -f SDE_SATS_DATA_RvR_CS.csv
 
 Options:
 python quicklook.py -h

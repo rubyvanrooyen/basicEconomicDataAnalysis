@@ -1,3 +1,6 @@
+keep:
+	mv *.png output/
+
 clean:
 	rm -f *.pyc *.png
 
