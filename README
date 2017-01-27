@@ -1,1 +1,5 @@
-python quicklook.py -f data/ESF_DATA_ORIG.csv --countries -v
+Usage:
+python quicklook.py [options] -f data/ESF_DATA_ORIG.csv
+
+Options:
+python quicklook.py -h
