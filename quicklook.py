@@ -102,6 +102,19 @@ if __name__ == '__main__':
                       help='Index of variable column selected')
     parser.add_option_group(group)
 
+    group = OptionGroup(parser, 'Column Correlation')
+    group.add_option('--ycol',
+                      dest='ycol',
+                      type=int,
+                      default=None,
+                      help='Column to plot on the Y-axis')
+    group.add_option('--xcol',
+                      dest='xcol',
+                      type=int,
+                      default=None,
+                      help='Column to plot on the X-axis')
+    parser.add_option_group(group)
+
     group = OptionGroup(parser, 'Output/Display Options')
     group.add_option("--indicators",
                       dest='indicators',
@@ -135,6 +148,9 @@ if __name__ == '__main__':
     if opts.infile is None:
         print "Data file must be provided"
         raise SystemExit(parser.print_usage())
+
+    if (opts.xcol is not None and opts.ycol is None) or (opts.xcol is None and opts.ycol is not None):
+        raise RuntimeError('Both --xcol and --ycol parameters must be specified')
 
     [units, data] = readStatFile(opts.infile, separator=';')
 
@@ -170,6 +186,25 @@ if __name__ == '__main__':
         plt.ylim(numpy.min(data[varname])-1,numpy.max(data[varname])+1)
         if opts.verbose: plt.show()
         if opts.savegraph: plt.savefig('Column_%s.png'%'_'.join(varname.split()),dpi=300)
+        import sys
+        sys.exit(0)
+
+
+    # Correlator variables
+    if opts.xcol is not None and opts.ycol is not None:
+        xvar = data.dtype.names[opts.xcol]
+        xdata = data[xvar]
+        yvar = data.dtype.names[opts.ycol]
+        ydata = data[yvar]
+        fig = plt.figure(figsize=[19,11], facecolor='white')
+        ax = fig.add_subplot(111)
+        ax.set_ylabel('%s [%s]' % (yvar, units[opts.ycol]))
+        ax.set_xlabel('%s [%s]' % (xvar, units[opts.xcol]))
+        plt.plot(xdata, ydata, '.')
+        plt.plot(numpy.unique(xdata[ydata!=0]),
+                numpy.poly1d(numpy.polyfit(xdata[ydata!=0], ydata[ydata!=0], 1))(numpy.unique(xdata[ydata!=0])), 'r--')
+        if opts.verbose: plt.show()
+        if opts.savegraph: plt.savefig('%s_vs_%s.png'%('_'.join(xvar.split()), '_'.join(yvar.split())),dpi=300)
         import sys
         sys.exit(0)
 
