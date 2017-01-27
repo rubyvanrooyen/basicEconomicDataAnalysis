@@ -234,10 +234,14 @@ if __name__ == '__main__':
         regions = map(str.strip, data['Region'])
         for region in numpy.unique(regions):
             print region
+        import sys
+        sys.exit(0)
     if opts.subregions:
         subregions = map(str.strip, data['Sub Region'])
         for subregion in numpy.unique(subregions):
             print subregion
+        import sys
+        sys.exit(0)
 
 
     # Colors per subregion
@@ -255,6 +259,7 @@ if __name__ == '__main__':
     variables = numpy.array(data.dtype.names)[varidx]
     countries = data['Country']
     for colidx,name in enumerate(variables):
+        print 'Variable %s' % name
         fig = plt.figure(figsize=[19,11], facecolor='white')
         ax = fig.add_subplot(111)
         ax.set_title(name)
