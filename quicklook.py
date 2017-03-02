@@ -71,7 +71,8 @@ def readStatFile(filename, separator=','):
 
 # Extract relevant region
 def get_region(data, region):
-    regionidx = numpy.nonzero(data['Region']==region)[0]
+    regionidx=numpy.nonzero([region in string for string in data['Region']])[0]
+
     if len(regionidx)<1:
         regionidx = []
         if other_regions.has_key(region):
@@ -86,35 +87,38 @@ def get_region(data, region):
     return data[regionidx]
 
 # Plot functions
-def plot_colidx(units, data, colidx, label=None):
-    varname = data.dtype.names[opts.colidx]
-    if string.lower(units[opts.colidx]) == 'indicator':
+def plot_colidx(units, data, colidx, marker='.', label=None, addtitle=False):
+    varname = data.dtype.names[colidx]
+    if string.lower(units[colidx]) == 'indicator':
         raise RuntimeError('"%s" is indicator column, not variable column'%varname)
-    print('Showing only variable "%s"'%varname)
+    print('\tShowing variable "%s using marker %s"' % (varname, marker))
     countries = data['Country']
-    ax.set_title(varname)
-    ax.set_ylabel(units[opts.colidx])
+    if addtitle: ax.set_title(varname)
+    ax.set_ylabel(units[colidx])
     ax.tick_params(axis='x', which='major', labelsize=6)
     plt.xticks(range(len(data[varname])), countries, rotation='vertical')
+    plt.xlim(-0.1, len(data[varname])-0.9)
     if label is None:
-        plt.plot(range(len(data[varname])), data[varname], '.')
+        plt.plot(range(len(data[varname])), data[varname], marker)
     if label is not None:
-        plt.plot(range(len(data[varname])), data[varname], '.', label=label)
+        plt.plot(range(len(data[varname])), data[varname], marker, label=label)
     plt.ylim(numpy.min(data[varname])-1,numpy.max(data[varname])+1)
     return varname
-def plot_xcorr(units, data, xcol, ycol, label=None):
+def plot_xcorr(units, data, xcol, ycol, label=None, linefit=True):
     xvar = data.dtype.names[xcol]
     xdata = data[xvar]
     yvar = data.dtype.names[ycol]
     ydata = data[yvar]
     ax.set_ylabel('%s [%s]' % (yvar, units[ycol]))
     ax.set_xlabel('%s [%s]' % (xvar, units[xcol]))
+    polycoeffs = numpy.polyfit(xdata[ydata!=0], ydata[ydata!=0], 2)
+    polyvals = numpy.polyval(polycoeffs, numpy.unique(xdata[ydata!=0]))
     if label is None:
         plt.plot(xdata, ydata, '.')
-        plt.plot(numpy.unique(xdata[ydata!=0]),
-                numpy.poly1d(numpy.polyfit(xdata[ydata!=0], ydata[ydata!=0], 1))(numpy.unique(xdata[ydata!=0])), 'r--')
     if label is not None:
         plt.plot(xdata, ydata, '.', label=label)
+    if linefit:
+        plt.plot(numpy.unique(xdata[ydata!=0]), polyvals, 'k--', alpha=0.5)
     return [xvar, yvar]
 def plot_regions(units, data, name, alpha=1., label=None, all_flag=False):
     # Colors per subregion
@@ -147,7 +151,7 @@ def plot_regions(units, data, name, alpha=1., label=None, all_flag=False):
 
 if __name__ == '__main__':
 
-    parser = OptionParser(usage='python %prog [options] <SATS DATA file>.csv', version="%prog 1.0")
+    parser = OptionParser(usage='python %prog [options] <file0>.csv <file1>.csv ...', version="%prog 1.0")
     group = OptionGroup(parser, 'Data Grouping')
     group.add_option('-s', '--sort',
                       dest='sortorder',
@@ -176,7 +180,7 @@ if __name__ == '__main__':
                       help='Name of subregion to display data')
     group.add_option('--colidx',
                       dest='colidx',
-                      type=int,
+                      type=str,
                       default=None,
                       help='Index of variable column selected')
     parser.add_option_group(group)
@@ -212,6 +216,16 @@ if __name__ == '__main__':
                       help="Display data in file to screen")
     parser.add_option_group(group)
 
+    parser.add_option("--nolegend",
+                      dest='nolegend',
+                      action="store_true",
+                      default=False,
+                      help="Do not display legend on graph")
+    parser.add_option("--linefit",
+                      dest='linefit',
+                      action="store_true",
+                      default=False,
+                      help="Fit polynomial to cross-correlator data")
     parser.add_option('-o', "--output",
                       dest='savegraph',
                       action="store_true",
@@ -274,18 +288,47 @@ if __name__ == '__main__':
             data = data[subregionidx]
 
     if opts.colidx is not None:
+        columns = numpy.array(opts.colidx.strip().split(','),dtype=int)
+        mkrs=['o', 'v', '^', '<', '>', 's', 'p', '*', 'x', '+']
+        label=None
         fig = plt.figure(figsize=[19,11], facecolor='white')
+        plt.hold(True)
         ax = fig.add_subplot(111)
-        if len(args) > 1:
-            for data_date in data_dict.keys():
-                units = data_dict[data_date]['units']
-                data = data_dict[data_date]['data']
-                varname = plot_colidx(units, data, opts.colidx, label=data_date)
-            ax.legend(loc=0)
-        else:
-            varname = plot_colidx(units, data, opts.colidx)
-        if opts.verbose: plt.show()
-        if opts.savegraph: plt.savefig('Column_%s.png'%'_'.join(varname.split()),dpi=300)
+        for cntr,colidx in enumerate(columns):
+            marker=mkrs[cntr%len(mkrs)]
+            if len(columns) > 1:
+                addtitle=False
+                if not opts.nolegend:
+                    label='%s' % (data.dtype.names[colidx])
+            else:
+                addtitle=True
+            if len(args) > 1:
+                for data_date in numpy.sort(data_dict.keys()):
+                    print('Data for %s' % data_date)
+                    units = data_dict[data_date]['units']
+                    data = data_dict[data_date]['data']
+                    if len(columns) > 1 and not opts.nolegend:
+                        label='%s: %s' % (data_date, data.dtype.names[colidx])
+                    else:
+                        label='%s' % (data_date)
+                    if opts.nolegend:
+                        label=None
+                    varname = plot_colidx(units, data, colidx, marker=marker, label=label, addtitle=addtitle)
+            else:
+                varname = plot_colidx(units, data, colidx, label=label)
+        plt.hold(False)
+        # Shrink current axis's height by 10% on the bottom
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9])
+        # Put a legend below current axis
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=5, numpoints=1)
+        if opts.savegraph:
+            imagename = 'Column_%s.png' % '_'.join(varname.split())
+            if len(columns) > 1:
+                imagename='Column_multivars.png'
+            plt.savefig(imagename,dpi=300)
+        if opts.verbose:
+            plt.show()
         import sys
         sys.exit(0)
 
@@ -298,12 +341,12 @@ if __name__ == '__main__':
             for data_date in data_dict.keys():
                 units = data_dict[data_date]['units']
                 data = data_dict[data_date]['data']
-                [xvar, yvar] = plot_xcorr(units, data, opts.xcol, opts.ycol, label=data_date)
+                [xvar, yvar] = plot_xcorr(units, data, opts.xcol, opts.ycol, label=data_date, linefit=opts.linefit)
             ax.legend(loc=0)
         else:
             [xvar, yvar] = plot_xcorr(units, data, opts.xcol, opts.ycol)
-        if opts.verbose: plt.show()
         if opts.savegraph: plt.savefig('%s_vs_%s.png'%('_'.join(xvar.split()), '_'.join(yvar.split())),dpi=300)
+        if opts.verbose: plt.show()
         import sys
         sys.exit(0)
 
@@ -340,9 +383,13 @@ if __name__ == '__main__':
             units = data_dict[data_dict.keys()[0]]['units']
             data = data_dict[data_dict.keys()[0]]['data']
     if opts.regions:
+        print('Data Regions:')
         regions = map(str.strip, data['Region'])
-        for region in numpy.unique(regions):
-            print region
+        for region in numpy.sort(numpy.unique(regions)):
+            print('\t%s' % region)
+        print('Additional Regions:')
+        for region in numpy.sort(other_regions.keys()):
+            print('\t%s' % region)
     if opts.subregions:
         subregions = map(str.strip, data['Sub Region'])
         for subregion in numpy.unique(subregions):
@@ -372,6 +419,7 @@ if __name__ == '__main__':
         ax.set_ylabel(units[varidx[0]+colidx])
         ax.tick_params(axis='x', which='major', labelsize=6)
         plt.xticks(range(len(data[name])), countries, rotation='vertical')
+        plt.xlim(-0.1, len(data[name])-0.9)
         if len(args) > 1:
             plt.hold(True)
             for date_idx, data_date in enumerate(numpy.sort(data_dict.keys())):
@@ -381,7 +429,12 @@ if __name__ == '__main__':
                         alpha=float(date_idx+1)/float(len(data_dict.keys())),
                         label=data_date, all_flag=all_flag)
             plt.hold(False)
-            ax.legend(loc=0)
+            # ax.legend(loc=0)
+            # Shrink current axis's height by 10% on the bottom
+            box = ax.get_position()
+            ax.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9])
+            # Put a legend below current axis
+            ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1), ncol=5, numpoints=1)
         else:
             plot_regions(units, data, name, all_flag=all_flag)
         if opts.savegraph:
